@@ -10,3 +10,6 @@
 
 # Python
 venv/
+
+# Build
+build/
