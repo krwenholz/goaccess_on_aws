@@ -45,9 +45,14 @@ resource "aws_s3_bucket" "hosted_outputs" {
 
 # Task running...
 ##############################################
-# TODO(kyle): Test that this hook up works and figure out how to vend the damn docker container
 module "ecr" {
   source = "./modules/ecr"
+
+  prefix = var.prefix
+}
+
+module "network" {
+  source = "./modules/network"
 
   prefix = var.prefix
 }
@@ -56,15 +61,19 @@ module "role" {
   source = "./modules/role"
 
   ecs_cluster_arn = module.ecs.cluster_arn
-  prefix = var.prefix
-  s3_buckets = aws_s3_bucket.hosted_outputs
+  prefix          = var.prefix
+  s3_buckets      = aws_s3_bucket.hosted_outputs
 }
 
 module "ecs" {
   source = "./modules/ecs"
 
-  prefix = var.prefix
-  app_role = module.role
+  app_role            = module.role
+  configurations      = var.configurations
+  network             = module.network
+  prefix              = var.prefix
+  # TODO(kyle): Change
+  schedule_expression = "rate(1000 minutes)"
 }
 
 # Outputs

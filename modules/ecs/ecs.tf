@@ -9,19 +9,23 @@
  * The Fargate CLI can be used to deploy new application image on top of this infrastructure.
  */
 
-variable "prefix" {}
 variable "app_role" {}
-variable "region" {
-  default = "us-west-2"
-}
-# The shedule on which to run the fargate task. Follows the CloudWatch Event Schedule Expression format: https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html
-variable "schedule_expression" {
-  default = "rate(15 minutes)"
-}
+variable "configurations" {}
 
 # name of the container in the task definition
 variable "container_name" {
   default = "app"
+}
+
+variable "network" {}
+variable "prefix" {}
+variable "region" {
+  default = "us-west-2"
+}
+
+# The shedule on which to run the fargate task. Follows the CloudWatch Event Schedule Expression format: https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html
+variable "schedule_expression" {
+  default = "rate(15 minutes)"
 }
 
 # Resources
@@ -32,7 +36,7 @@ resource "aws_ecs_cluster" "app" {
 }
 
 resource "aws_cloudwatch_log_group" "ecs_log_group" {
-  name = "${var.prefix}-ecs"
+  name              = "${var.prefix}-ecs"
   retention_in_days = "14"
 }
 
@@ -50,16 +54,16 @@ resource "aws_ecs_task_definition" "app" {
   container_definitions = <<DEFINITION
 [
   {
-    "name": var.container_name,
+    "name": "${var.container_name}",
     "image": "hello-world",
     "essential": true,
     "portMappings": [],
-    "environment": [],
+    "environment": [{"name": "CONFIGURATION", "value": "${base64encode(jsonencode(var.configurations))}"}],
     "logConfiguration": {
       "logDriver": "awslogs",
       "options": {
-        "awslogs-group": ${aws_cloudwatch_log_group.ecs_log_group.name},
-        "awslogs-region": "us-east-1",
+        "awslogs-group": "${aws_cloudwatch_log_group.ecs_log_group.name}",
+        "awslogs-region": "${var.region}",
         "awslogs-stream-prefix": "fargate"
       }
     }
@@ -70,7 +74,7 @@ DEFINITION
 
 # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_execution_IAM_role.html
 resource "aws_iam_role" "task_execution_role" {
-  name               = "${var.prefix}-ecs"
+  name = "${var.prefix}-ecs"
   assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
 }
 
@@ -80,7 +84,7 @@ data "aws_iam_policy_document" "assume_role_policy" {
     actions = ["sts:AssumeRole"]
 
     principals {
-      type        = "Service"
+      type = "Service"
       identifiers = ["ecs-tasks.amazonaws.com"]
     }
   }
@@ -88,13 +92,13 @@ data "aws_iam_policy_document" "assume_role_policy" {
 
 # allow task execution role to work with ecr and cw logs
 resource "aws_iam_role_policy_attachment" "task_execution_role_policy" {
-  role       = "${aws_iam_role.task_execution_role.name}"
+  role = "${aws_iam_role.task_execution_role.name}"
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
 # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/CWE_IAM_role.html
 resource "aws_iam_role" "cloudwatch_events_role" {
-  name               = "${var.prefix}-events"
+  name = "${var.prefix}-events"
   assume_role_policy = "${data.aws_iam_policy_document.events_assume_role_policy.json}"
 }
 
@@ -104,7 +108,7 @@ data "aws_iam_policy_document" "events_assume_role_policy" {
     actions = ["sts:AssumeRole"]
 
     principals {
-      type        = "Service"
+      type = "Service"
       identifiers = ["events.amazonaws.com"]
     }
   }
@@ -113,28 +117,28 @@ data "aws_iam_policy_document" "events_assume_role_policy" {
 # allow events role to run ecs tasks
 data "aws_iam_policy_document" "events_ecs" {
   statement {
-    effect    = "Allow"
-    actions   = ["ecs:RunTask"]
+    effect = "Allow"
+    actions = ["ecs:RunTask"]
     resources = ["arn:aws:ecs:${var.region}:*:task-definition/${aws_ecs_task_definition.app.family}:*"]
 
     condition {
-      test     = "StringLike"
+      test = "StringLike"
       variable = "ecs:cluster"
-      values   = ["${aws_ecs_cluster.app.arn}"]
+      values = ["${aws_ecs_cluster.app.arn}"]
     }
   }
 }
 
 resource "aws_iam_role_policy" "events_ecs" {
-  name   = "${var.prefix}-events-ecs"
-  role   = "${aws_iam_role.cloudwatch_events_role.id}"
+  name = "${var.prefix}-events-ecs"
+  role = "${aws_iam_role.cloudwatch_events_role.id}"
   policy = "${data.aws_iam_policy_document.events_ecs.json}"
 }
 
 # allow events role to pass role to task execution role and app role
 data "aws_iam_policy_document" "passrole" {
   statement {
-    effect  = "Allow"
+    effect = "Allow"
     actions = ["iam:PassRole"]
 
     resources = [
@@ -145,35 +149,34 @@ data "aws_iam_policy_document" "passrole" {
 }
 
 resource "aws_iam_role_policy" "events_ecs_passrole" {
-  name   = "${var.prefix}-events-ecs-passrole"
-  role   = aws_iam_role.cloudwatch_events_role.id
+  name = "${var.prefix}-events-ecs-passrole"
+  role = aws_iam_role.cloudwatch_events_role.id
   policy = data.aws_iam_policy_document.passrole.json
 }
 
 resource "aws_cloudwatch_event_rule" "scheduled_task" {
-  name                = var.prefix
-  description         = "Runs fargate task ${var.prefix}: ${var.schedule_expression}"
+  name = var.prefix
+  description = "Runs fargate task ${var.prefix}: ${var.schedule_expression}"
   schedule_expression = var.schedule_expression
 }
 
 resource "aws_cloudwatch_event_target" "scheduled_task" {
-  rule      = aws_cloudwatch_event_rule.scheduled_task.name
+  rule = aws_cloudwatch_event_rule.scheduled_task.name
   target_id = var.prefix
-  arn       = aws_ecs_cluster.app.arn
-  role_arn  = aws_iam_role.cloudwatch_events_role.arn
-  input     = "{}"
+  arn = aws_ecs_cluster.app.arn
+  role_arn = aws_iam_role.cloudwatch_events_role.arn
+  input = "{}"
 
   ecs_target {
-    task_count          = 1
+    task_count = 1
     task_definition_arn = aws_ecs_task_definition.app.arn
-    launch_type         = "FARGATE"
-    platform_version    = "LATEST"
+    launch_type = "FARGATE"
+    platform_version = "LATEST"
 
     network_configuration {
       assign_public_ip = false
-      security_groups  = [aws_security_group.nsg_task.id]
-      # TODO(kyle): I need to create a VPC and subnets
-      subnets          = split(",", var.private_subnets)
+      security_groups = [var.network.security_group]
+      subnets = var.network.subnets
     }
   }
 }
