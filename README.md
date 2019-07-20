@@ -24,8 +24,6 @@ module "logdrain" {
 
 TODO
 ====
->  TODO(kyle): Terraform to create function (with goaccess) and invoke every X minutes: https://jeremievallee.com/2017/03/26/aws-lambda-terraform.html
->  TODO(kyle): Build function with lambci Docker image: https://github.com/lambci/docker-lambda
 >  TODO(kyle): Fetch logs https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/logs.html#CloudWatchLogs.Client.get_log_events
 >  TODO(kyle): Parse with goaccess (maybe filtered by some environment variable filter) and store in file: https://goaccess.io/man#examples
 >  TODO(kyle): Save files in S3 and copy them down to persist it all
