@@ -1,24 +1,35 @@
 """Hadler to run goaccess, store state, and more goodness."""
 
-import boto3
-import subprocess
-import logging
-import os
-import json
 import base64
+import boto3
+import json
+import os
+import structlog
+import subprocess
+
+from src import configure_logging
+
+#  TODO(kyle): For each configuration
+#  TODO(kyle): get latest from DynamoDB: https://boto3.amazonaws.com/v1/documentation/api/latest/guide/dynamodb.html
+#  TODO(kyle): Download database from S3 (with version id and handle empty): https://realpython.com/python-boto3-aws-s3/#downloading-a-file
+#  TODO(kyle): run goaccess
+#  TODO(kyle): Update S3 (database last and grab version)
+#  TODO(kyle): update DynamoDB
 
 
-def handle_logs(context):
+def handle_logs(configurations):
+    log = structlog.get_logger("app")
+    s3 = boto3.resource("s3")
+    dynamo = boto3.resource("dynamodb")
     cloudwatch = boto3.client("logs")
 
-    logging.info(event)
-    logging.info("bucket", event["bucket"])
-    logging.info("log_filter", event["log_filter"])
-    logging.info("weblog_pattern", event["weblog_pattern"])
+    for config in configurations:
+        log.info("Running with configuration", **config)
+
     subprocess.run(["./goaccess", "--help"], check=True)
-    return {"statusCode": 200, "headers": {"Content-Length": 0}}
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    logging.info("Decoded " + str(json.loads(base64.decodebytes(bytes(os.environ["CONFIGURATION"], "utf-8")))))
+    configure_logging.configure_logging()
+    configurations = json.loads(base64.decodebytes(bytes(os.environ["CONFIGURATION"], "utf-8")))
+    handle_logs(configurations)

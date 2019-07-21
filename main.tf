@@ -41,6 +41,10 @@ resource "aws_s3_bucket" "hosted_outputs" {
     index_document = "index.html"
     error_document = "error.html"
   }
+
+  versioning {
+    enabled = true
+  }
 }
 
 # Task running...
