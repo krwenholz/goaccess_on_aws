@@ -1,6 +1,5 @@
 """Hadler to run goaccess, store state, and more goodness."""
 
-import base64
 import boto3
 import json
 import os
@@ -26,10 +25,11 @@ def handle_logs(configurations):
     for config in configurations:
         log.info("Running with configuration", **config)
 
-    subprocess.run(["./goaccess", "--help"], check=True)
+    subprocess.run(["goaccess", "--version"], check=True)
 
 
 if __name__ == "__main__":
     configure_logging.configure_logging()
-    configurations = json.loads(base64.decodebytes(bytes(os.environ["CONFIGURATION"], "utf-8")))
+    baz = os.environ["CONFIGURATION"]
+    configurations = json.loads(os.environ["CONFIGURATION"])
     handle_logs(configurations)

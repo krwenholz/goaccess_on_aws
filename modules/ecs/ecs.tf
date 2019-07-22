@@ -58,7 +58,7 @@ resource "aws_ecs_task_definition" "app" {
     "image": "hello-world",
     "essential": true,
     "portMappings": [],
-    "environment": [{"name": "CONFIGURATION", "value": "${base64encode(jsonencode(var.configurations))}"}],
+    "environment": [{"name": "CONFIGURATION", "value": "${replace(jsonencode(var.configurations), "\"", "\\\"")}"}],
     "logConfiguration": {
       "logDriver": "awslogs",
       "options": {
