@@ -4,9 +4,7 @@ variable ecs_cluster_arn {
   type = "string"
 }
 
-variable s3_buckets {
-  type = "list"
-}
+variable storage {}
 
 # Resources
 ##############################################
@@ -26,6 +24,8 @@ resource "aws_iam_role_policy" "app_policy" {
 
 data "aws_iam_policy_document" "app_policy" {
   statement {
+    sid = "workWithClusters"
+
     actions = [
       "ecs:DescribeClusters",
     ]
@@ -36,13 +36,19 @@ data "aws_iam_policy_document" "app_policy" {
   }
 
   statement {
-    resources = concat(
-      [for bucket in var.s3_buckets : bucket.arn],
-      [for bucket in var.s3_buckets : "${bucket.arn}/*"]
-    )
-    sid = "manageBuckets"
+    actions   = ["*"]
+    resources = [var.storage.versions_pointer.arn]
+    sid       = "managePointer"
+  }
 
+  statement {
     actions = ["*"]
+    sid     = "manageBuckets"
+
+    resources = concat(
+      [for bucket in var.storage.buckets : bucket.arn],
+      [for bucket in var.storage.buckets : "${bucket.arn}/*"]
+    )
   }
 }
 

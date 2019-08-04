@@ -26,29 +26,15 @@ provider "aws" {
   region = var.region
 }
 
-# S3 bucket for hosting
-##############################################
-#https://stxnext.com/blog/2019/03/29/devops-hosting-static-websites-aws-s3/#a-4-step-guide
-resource "aws_s3_bucket" "hosted_outputs" {
-  count = length(var.configurations)
-
-  bucket = var.configurations[count.index].bucket_name
-  acl    = "public-read"
-  # TODO(kyle): Do I need this?
-  #policy = "${file("policy.json")}"
-
-  website {
-    index_document = "index.html"
-    error_document = "error.html"
-  }
-
-  versioning {
-    enabled = true
-  }
-}
-
 # Task running...
 ##############################################
+module "storage" {
+  source = "./modules/storage"
+
+  configurations = var.configurations
+  prefix         = var.prefix
+}
+
 module "ecr" {
   source = "./modules/ecr"
 
@@ -66,7 +52,7 @@ module "role" {
 
   ecs_cluster_arn = module.ecs.cluster_arn
   prefix          = var.prefix
-  s3_buckets      = aws_s3_bucket.hosted_outputs
+  storage         = module.storage
 }
 
 module "ecs" {
@@ -77,7 +63,8 @@ module "ecs" {
   network             = module.network
   prefix              = var.prefix
   # TODO(kyle): Change
-  schedule_expression = "rate(1000 minutes)"
+  schedule_expression = "rate(10000 minutes)"
+  storage             = module.storage
 }
 
 # Outputs
