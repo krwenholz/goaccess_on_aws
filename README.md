@@ -2,7 +2,9 @@
 About
 =====
 
-Run [goaccess](https://goaccess.io) against AWS CloudWatch Logs on Lambda.
+Set everything up to run [goaccess](https://goaccess.io) against AWS CloudWatch Logs
+on Lambda. It doesn't include a runner yet. That was too much work for now, but the
+Docker container is there! Easy to deploy to Heroku or AWS ECS and schedule.
 
 Using this lambda
 =================
@@ -13,19 +15,23 @@ Import and use the Terraform module like
 
 ```
 module "logdrain" {
-  source               = "git::https://github.com/krwenholz/heroku_cloudwatch_sync.git?ref=master"
+  source               = "git::https://github.com/krwenholz/goaccess_on_aws.git?ref=master"
+  prefix               = "Some name to prefix resources with"
   logger_name          = "YOUR_LOG_DRAIN_NAME_HERE"
-  region               = "REGION_HERE_USED_FOR_OUTPUT_URL_ONLY"
-  app_names            = ["NAME_OF_A_HEROKU_APP"]
+  region               = "REGION_HERE_USED_FOR_STORAGE_AND_FUN"
+  configurations       = {
+    log_group : "Your group",
+    log_filter : "A filter for said group to target logs, empty if none",
+    weblog_pattern : "Pattern for goaccess weblogs",
+    bucket_name : "Bucket name to host output files (might want to hook it up to a site)"
+  }
+]
 }
 ```
 
->  TODO(kyle): follow up instructions about log groups and viewing files
+When your runner runs (give it credentials for the role output by the module), you'll
+get an `index.html` file in your bucket you can view!
 
 TODO
 ====
->  TODO(kyle): Fetch logs https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/logs.html#CloudWatchLogs.Client.get_log_events
->  TODO(kyle): Parse with goaccess (maybe filtered by some environment variable filter) and store in file: https://goaccess.io/man#examples
->  TODO(kyle): Save files in S3 and copy them down to persist it all
->  TODO(kyle): Need to keep track of last log pull and file name for new DB files (yeah they should be versioned): https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GettingStarted.Python.03.html
 >  TODO(kyle): Add retention policy to S3 bucket?
