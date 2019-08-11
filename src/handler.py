@@ -33,8 +33,7 @@ def run(command, name, timeout):
     completed_process.check_returncode()
 
 
-def goaccess(in_file, out_file, db_dir, log_format):
-    # TODO(kyle): load-from-disk is passed in when needed
+def goaccess(in_file, out_file, db_dir, log_format, load: False):
     command = [
         "goaccess",
         "--keep-db-files",
@@ -43,6 +42,9 @@ def goaccess(in_file, out_file, db_dir, log_format):
         f"--output={out_file}",
         in_file,
     ]
+
+    if load:
+        command.append("--load-from-disk")
 
     run(command, "goaccess", 300)
 
@@ -102,7 +104,7 @@ def update_log_group(log_group, config, end_time):
     awslogs(log_group, config["start_time"], end_time, log_file, config.get("log_filter", ""))
 
     log.info("Writing report", log_group=log_group)
-    goaccess(log_file, report_file, config["local_db"], config["log_format"])
+    goaccess(log_file, report_file, config["local_db"], config["log_format"], load=True)
 
     tar_destination = tempfile.mkstemp(suffix="tar.gz")[1]
     with tarfile.open(tar.destination, "w:gz") as tar:

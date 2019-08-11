@@ -1,13 +1,16 @@
 FROM ubuntu:bionic
 
-RUN apt-get update
-RUN apt-get install -y locales python3-pip python3-dev python3-virtualenv \
-      git curl wget libncursesw5-dev libglib2.0-dev libgeoip-dev libtokyocabinet-dev
+RUN apt-get update -y
+RUN apt-get install -y locales wget python3-pip python3-dev python3-virtualenv \
+    libncursesw5-dev libglib2.0-dev libgeoip-dev libtokyocabinet-dev libbz2-dev
 
-RUN echo "deb http://deb.goaccess.io/ $(lsb_release -cs) main" | sudo tee -a /etc/apt/sources.list.d/goaccess.list && \
-    wget -O - https://deb.goaccess.io/gnugpg.key | sudo apt-key add - && \
-    sudo apt-get update && \
-    sudo apt-get install goaccess-tcb
+RUN wget http://tar.goaccess.io/goaccess-1.3.tar.gz && \
+    tar -xzvf goaccess-1.3.tar.gz && \
+    cd goaccess-1.3 && \
+    ./configure --enable-utf8 --enable-geoip=legacy --enable-tcb=btree && \
+    make && \
+    make install && \
+    ln -s /usr/local/bin/goaccess /usr/bin/goaccess
 
 COPY requirements.txt .
 RUN pip3 install -r requirements.txt

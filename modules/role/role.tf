@@ -1,9 +1,5 @@
 variable "prefix" {}
 
-variable ecs_cluster_arn {
-  type = "string"
-}
-
 variable storage {}
 
 # Resources
@@ -15,8 +11,7 @@ resource "aws_iam_role" "app_role" {
   assume_role_policy = data.aws_iam_policy_document.app_role_assume_role_policy.json
 }
 
-# assigns the app policy
-resource "aws_iam_role_policy" "app_policy" {
+resource "aws_iam_role_policy" "role_policy" {
   name   = "${var.prefix}-app_policy"
   role   = aws_iam_role.app_role.id
   policy = data.aws_iam_policy_document.app_policy.json
@@ -24,15 +19,13 @@ resource "aws_iam_role_policy" "app_policy" {
 
 data "aws_iam_policy_document" "app_policy" {
   statement {
-    sid = "workWithClusters"
-
-    actions = [
-      "ecs:DescribeClusters",
+    actions   = [
+      "logs:Describe*",
+      "logs:Get*",
+      "logs:FilterLogEvents",
     ]
-
-    resources = [
-      var.ecs_cluster_arn,
-    ]
+    resources = ["arn:aws:logs:*:*:*"]
+    sid       = "manageLogs"
   }
 
   statement {

@@ -35,40 +35,19 @@ module "storage" {
   prefix         = var.prefix
 }
 
-module "ecr" {
-  source = "./modules/ecr"
-
-  prefix = var.prefix
-}
-
-module "network" {
-  source = "./modules/network"
-
-  prefix = var.prefix
-}
-
 module "role" {
   source = "./modules/role"
 
-  ecs_cluster_arn = module.ecs.cluster_arn
   prefix          = var.prefix
   storage         = module.storage
 }
 
-module "ecs" {
-  source = "./modules/ecs"
-
-  app_role            = module.role
-  configurations      = var.configurations
-  network             = module.network
-  prefix              = var.prefix
-  # TODO(kyle): Change
-  schedule_expression = "rate(10000 minutes)"
-  storage             = module.storage
-}
-
 # Outputs
 ##############################################
-output "site" {
-  value = ""
+output "sites" {
+  value = module.storage.buckets.*.bucket_domain_name
+}
+
+output "role" {
+  value = module.role.arn
 }
