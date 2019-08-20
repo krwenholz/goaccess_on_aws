@@ -90,8 +90,8 @@ def get_databases(pointer_table, configurations):
                 os.makedirs(path)
             goaccess(tempfile.mkstemp()[1], tempfile.mkstemp()[1], path, configurations[log_group]["log_format"])
             config["local_db"] = path
-            # Default to 30 days back
-            config["last_updated"] = datetime.datetime.utcnow() + datetime.timedelta(days=-30)
+            # Default to 90 days back
+            config["last_updated"] = datetime.datetime.utcnow() + datetime.timedelta(days=-90)
 
 
 def update_log_group(log_group, config, end_time):

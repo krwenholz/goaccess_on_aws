@@ -24,11 +24,8 @@ module "logdrain" {
 }
 ```
 
-When your runner runs (give it credentials for the role output by the module), you'll
-get an `index.html` file in your bucket you can view!
-
-There's a docker file in here to act as an example runner.
-
-TODO
-====
->  TODO(kyle): Add retention policy to S3 bucket?
+You'll then need to create a runner modeled after the Docker image and handler script in
+this repo. (We just use the same image on Heroku as a scheduled task.) When your runner
+runs (give it credentials for the role output by the module), you'll get an `index.html`
+file in your bucket you can view! Do be sure to run more than once every 30 days or you'll
+lose your data and need to start over.
