@@ -16,8 +16,6 @@ variable "configurations" {
   default = [
     {
       log_group : "web.3",
-      log_filter : "",
-      weblog_pattern : "",
       bucket_name : "test.example"
   }]
 }

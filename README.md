@@ -18,8 +18,6 @@ module "logdrain" {
   configurations       = [
     {
       log_group : "Your group",
-      log_filter : "A filter for said group to target logs, empty if none",
-      weblog_pattern : "Pattern for goaccess weblogs",
       bucket_name : "Bucket name to host output files (might want to hook it up to a site)"
     }
   ]
@@ -28,6 +26,8 @@ module "logdrain" {
 
 When your runner runs (give it credentials for the role output by the module), you'll
 get an `index.html` file in your bucket you can view!
+
+There's a docker file in here to act as an example runner.
 
 TODO
 ====
