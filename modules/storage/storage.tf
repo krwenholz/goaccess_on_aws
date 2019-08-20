@@ -23,11 +23,6 @@ resource "aws_dynamodb_table" "versions_pointer" {
     name = "db_key"
     type = "S"
   }
-
-  ttl {
-    attribute_name = "TimeToExist"
-    enabled        = false
-  }
 }
 
 # S3 bucket for hosting
