@@ -33,8 +33,8 @@ module "storage" {
   prefix         = var.prefix
 }
 
-module "role" {
-  source = "./modules/role"
+module "permissions" {
+  source = "./modules/permissions"
 
   prefix          = var.prefix
   storage         = module.storage
@@ -46,6 +46,6 @@ output "sites" {
   value = module.storage.buckets.*.bucket_domain_name
 }
 
-output "role" {
-  value = module.role.arn
+output "group" {
+  value = module.permissions.group_arn
 }

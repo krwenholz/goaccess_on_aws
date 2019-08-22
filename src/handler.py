@@ -33,11 +33,13 @@ def run(command, name, timeout):
     completed_process.check_returncode()
 
 
-def goaccess(in_file, out_file, db_dir, log_format, load: False):
+def goaccess(in_file, out_file, db_dir, log_format, time_format, date_format, load: False):
     command = [
         "goaccess",
         "--keep-db-files",
+        "--anonymize-ip",
         f"--log-format={log_format}",
+        f"--date-format={date_format}",
         f"--db-path={db_dir}",
         f"--output={out_file}",
         in_file,
@@ -88,7 +90,14 @@ def get_databases(pointer_table, configurations):
             path = "/tmp/" + log_group
             if not os.path.exists(path):
                 os.makedirs(path)
-            goaccess(tempfile.mkstemp()[1], tempfile.mkstemp()[1], path, configurations[log_group]["log_format"])
+            goaccess(
+                tempfile.mkstemp()[1],
+                tempfile.mkstemp()[1],
+                path,
+                configurations[log_group]["log_format"],
+                configurations[log_group]["time_format"],
+                configurations[log_group]["date_format"],
+            )
             config["local_db"] = path
             # Default to 90 days back
             config["last_updated"] = datetime.datetime.utcnow() + datetime.timedelta(days=-90)
@@ -104,7 +113,15 @@ def update_log_group(log_group, config, end_time):
     awslogs(log_group, config["start_time"], end_time, log_file, config.get("log_filter", ""))
 
     log.info("Writing report", log_group=log_group)
-    goaccess(log_file, report_file, config["local_db"], config["log_format"], load=True)
+    goaccess(
+        log_file,
+        report_file,
+        config["local_db"],
+        config["log_format"],
+        config["time_format"],
+        config["date_format"],
+        load=True,
+    )
 
     tar_destination = tempfile.mkstemp(suffix="tar.gz")[1]
     with tarfile.open(tar.destination, "w:gz") as tar:
