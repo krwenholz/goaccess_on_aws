@@ -12,15 +12,9 @@ resource "aws_dynamodb_table" "versions_pointer" {
   read_capacity  = 2
   write_capacity = 2
   hash_key       = "log_group"
-  range_key      = "db_key"
 
   attribute {
     name = "log_group"
-    type = "S"
-  }
-
-  attribute {
-    name = "db_key"
     type = "S"
   }
 }

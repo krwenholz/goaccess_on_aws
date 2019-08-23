@@ -2,6 +2,7 @@
 
 import boto3
 import datetime
+import dateutil.parser
 import json
 import os
 import structlog
@@ -13,6 +14,10 @@ from boto3.dynamodb import conditions
 from src import configure_logging
 
 log = None
+s3 = boto3.resource("s3")
+s3_client = boto3.client("s3")
+dynamodb = boto3.resource("dynamodb")
+cloudwatch = boto3.client("logs")
 
 
 def run(command, name, timeout, out=None):
@@ -41,6 +46,7 @@ def run(command, name, timeout, out=None):
 
 
 def goaccess(in_file, out_file, db_dir, log_format, time_format, date_format, load=False):
+    #  TODO(kyle): reusing the DB doesn't seem to be working
     command = [
         "goaccess",
         "--keep-db-files",
@@ -59,7 +65,7 @@ def goaccess(in_file, out_file, db_dir, log_format, time_format, date_format, lo
     ]
 
     if load:
-        command.append("--load-from-disk")
+        command.insert(1, "--load-from-disk")
 
     run(command, "goaccess", 300)
 
@@ -84,8 +90,6 @@ def awslogs(log_group, start_time, end_time, out_file, log_filter=None):
 
 def get_databases(pointer_table, configurations):
     log.info("Fetching databases", pointer_table=pointer_table)
-    s3 = boto3.resource("s3")
-    dynamodb = boto3.resource("dynamodb")
 
     table = dynamodb.Table(pointer_table)
     response = table.scan(FilterExpression=conditions.Attr("log_group").is_in([kk for kk in configurations.keys()]))
@@ -93,12 +97,12 @@ def get_databases(pointer_table, configurations):
     log.info("Fetched pointers", pointers=group_datas)
 
     for group_data in group_datas:
-        db_key = group_data["key_prefix"]
+        db_key = group_data["db_key"]
         log_group = group_data["log_group"]
         config = configurations[log_group]
 
         local_destination = tempfile.mkstemp()[1]
-        s3.Object(config["bucket_name"], f"{db_key}.db").download_file(local_destination)
+        s3.Object(config["bucket_name"], db_key).download_file(local_destination)
 
         with tarfile.open(local_destination) as tar:
             destination = "/tmp/" + log_group
@@ -106,7 +110,7 @@ def get_databases(pointer_table, configurations):
 
         log.info("Fetched existing database", log_group=log_group, configuration=config)
         config["local_db"] = destination
-        config["last_udated"] = datetime.datetime.fromisoformat(group_data["update_time"])
+        config["last_updated"] = group_data["update_time"]
 
     for log_group, config in configurations.items():
         if "local_db" not in config:
@@ -154,16 +158,18 @@ def update_log_group(log_group, config, end_time):
         config["db_key"] = os.path.split(tar_destination)[1]
 
     log.info("Uploading database and report", log_group=log_group)
-    s3 = boto3.resource("s3")
     s3.Object(config["bucket_name"], config["db_key"]).upload_file(Filename=tar_destination)
-    report_object = s3.Object(config["bucket_name"], "traffic_report.html")
-    report_object.upload_file(Filename=report_file)
-    report_object.Acl().put(ACL="public-read")
+    with open(report_file, "rb") as content:
+        report_object = s3_client.put_object(
+            Body=content.read(),
+            Bucket=config["bucket_name"],
+            Key="index.html",
+            ContentType="text/html; charset=utf-8",
+            ACL="public-read",
+        )
 
 
 def handle_logs(configurations, pointer_table):
-    cloudwatch = boto3.client("logs")
-
     now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     get_databases(pointer_table, configurations)
 
@@ -172,7 +178,7 @@ def handle_logs(configurations, pointer_table):
 
     with dynamodb.Table(pointer_table).batch_writer() as batch:
         for log_group, config in configurations.items():
-            batch.put_item(Item={"log_group": log_group, "db_key": config["db_key"], update_time: now})
+            batch.put_item(Item={"log_group": log_group, "db_key": config["db_key"], "update_time": now})
 
 
 if __name__ == "__main__":
