@@ -12,14 +12,14 @@ RUN wget http://tar.goaccess.io/goaccess-1.3.tar.gz && \
     make install && \
     ln -s /usr/local/bin/goaccess /usr/bin/goaccess
 
-COPY requirements.txt .
-RUN pip3 install -r requirements.txt
-COPY src .
-
 # Set the locale
 RUN locale-gen en_US.UTF-8
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
+
+COPY requirements.txt .
+RUN pip3 install -r requirements.txt
+COPY src src
 
 CMD [CMD [ "python", "-m", "src.handler" ]

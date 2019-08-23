@@ -3,17 +3,20 @@
 import boto3
 import datetime
 import json
+import os
+import structlog
 import subprocess
 import tarfile
 import tempfile
 
+from boto3.dynamodb import conditions
 from src import configure_logging
 
 log = None
 
 
-def run(command, name, timeout):
-    log.info("Running command", name=name, command=command, timeout=timeout)
+def run(command, name, timeout, out=None):
+    log.info("Running command", name=name, command=command, timeout=timeout, out=out)
 
     try:
         # Capture all output (out and err) in STDOUT as utf-8
@@ -32,16 +35,26 @@ def run(command, name, timeout):
 
     completed_process.check_returncode()
 
+    if out:
+        with open(out, "w") as out_file:
+            out_file.write(completed_process.stdout)
 
-def goaccess(in_file, out_file, db_dir, log_format, time_format, date_format, load: False):
+
+def goaccess(in_file, out_file, db_dir, log_format, time_format, date_format, load=False):
     command = [
         "goaccess",
         "--keep-db-files",
         "--anonymize-ip",
-        f"--log-format={log_format}",
-        f"--date-format={date_format}",
-        f"--db-path={db_dir}",
-        f"--output={out_file}",
+        "--log-format",
+        log_format,
+        "--time-format",
+        time_format,
+        "--date-format",
+        date_format,
+        "--db-path",
+        db_dir,
+        "--output",
+        out_file,
         in_file,
     ]
 
@@ -52,21 +65,32 @@ def goaccess(in_file, out_file, db_dir, log_format, time_format, date_format, lo
 
 
 def awslogs(log_group, start_time, end_time, out_file, log_filter=None):
-    command = ["awslogs", "get", log_group, f"--start={start_time}"]
+    command = [
+        "awslogs",
+        "get",
+        log_group,
+        "--start",
+        start_time,
+        "--end",
+        end_time,
+        "--filter",
+        log_filter,
+        "--no-group",
+        "--no-stream",
+    ]
 
-    run(command, "awslogs", 300)
+    run(command, "awslogs", 300, out=out_file)
 
 
 def get_databases(pointer_table, configurations):
+    log.info("Fetching databases", pointer_table=pointer_table)
     s3 = boto3.resource("s3")
     dynamodb = boto3.resource("dynamodb")
 
     table = dynamodb.Table(pointer_table)
-    response = table.query(
-        KeyConditionExpression=Key("log_group").is_in([config["log_group"] for log_group in configurations])
-    )
+    response = table.scan(FilterExpression=conditions.Attr("log_group").is_in([kk for kk in configurations.keys()]))
     group_datas = response["Items"]
-    log.info("Fetched pointers", pointers=items)
+    log.info("Fetched pointers", pointers=group_datas)
 
     for group_data in group_datas:
         db_key = group_data["key_prefix"]
@@ -100,17 +124,18 @@ def get_databases(pointer_table, configurations):
             )
             config["local_db"] = path
             # Default to 90 days back
-            config["last_updated"] = datetime.datetime.utcnow() + datetime.timedelta(days=-90)
+            start = datetime.datetime.utcnow() + datetime.timedelta(days=-90)
+            config["last_updated"] = start.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def update_log_group(log_group, config, end_time):
-    log.info("Running with configuration", log_group=log_group, **config)
+    log.info("Updating with configuration", **config)
 
     log_file = tempfile.mkstemp(suffix=".log")[1]
     report_file = tempfile.mkstemp(suffix=".html")[1]
 
     log.info("Fetching logs", log_group=log_group)
-    awslogs(log_group, config["start_time"], end_time, log_file, config.get("log_filter", ""))
+    awslogs(log_group, config["last_updated"], end_time, log_file, config.get("log_filter", None))
 
     log.info("Writing report", log_group=log_group)
     goaccess(
@@ -124,26 +149,29 @@ def update_log_group(log_group, config, end_time):
     )
 
     tar_destination = tempfile.mkstemp(suffix="tar.gz")[1]
-    with tarfile.open(tar.destination, "w:gz") as tar:
+    with tarfile.open(tar_destination, "w:gz") as tar:
         tar.add(config["local_db"])
         config["db_key"] = os.path.split(tar_destination)[1]
 
     log.info("Uploading database and report", log_group=log_group)
-    s3_resource.Object(config["bucket_name"], config["db_key"]).upload_file(Filename=tar_destination)
-    s3_resource.Object(config["bucket_name"], "traffic_report.html").upload_file(Filename=report_file)
+    s3 = boto3.resource("s3")
+    s3.Object(config["bucket_name"], config["db_key"]).upload_file(Filename=tar_destination)
+    report_object = s3.Object(config["bucket_name"], "traffic_report.html")
+    report_object.upload_file(Filename=report_file)
+    report_object.Acl().put(ACL="public-read")
 
 
 def handle_logs(configurations, pointer_table):
     cloudwatch = boto3.client("logs")
 
-    now = datetime.utcnow()
+    now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     get_databases(pointer_table, configurations)
 
     for log_group, config in configurations.items():
         update_log_group(log_group, config, now)
 
     with dynamodb.Table(pointer_table).batch_writer() as batch:
-        for log_group, config in configurations.items:
+        for log_group, config in configurations.items():
             batch.put_item(Item={"log_group": log_group, "db_key": config["db_key"], update_time: now})
 
 
@@ -153,4 +181,7 @@ if __name__ == "__main__":
 
     configurations = {config["log_group"]: config for config in json.loads(os.environ.get("CONFIGURATIONS", "[]"))}
     pointer_table = os.environ["POINTER_TABLE"]
+
+    log.info("Run time!", configurations=configurations)
+
     handle_logs(configurations, pointer_table)

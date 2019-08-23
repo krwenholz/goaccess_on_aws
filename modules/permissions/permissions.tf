@@ -23,13 +23,10 @@ data "aws_iam_policy_document" "app_policy" {
   }
 
   statement {
-    actions = ["*"]
-    sid     = "manageBuckets"
+    actions = ["s3:Put*", "s3:Get*"]
+    sid     = "manageStorage"
 
-    resources = concat(
-      [for bucket in var.storage.buckets : bucket.arn],
-      [for bucket in var.storage.buckets : "${bucket.arn}/*"]
-    )
+    resources = [for bucket in var.storage.buckets : "${bucket.arn}/*"]
   }
 }
 
