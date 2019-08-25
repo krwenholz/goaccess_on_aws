@@ -29,3 +29,9 @@ this repo. (We just use the same image on Heroku as a scheduled task.) When your
 runs (give it credentials for the role output by the module), you'll get an `index.html`
 file in your bucket you can view! Do be sure to run more than once every 30 days or you'll
 lose your data and need to start over.
+
+Example run:
+
+```
+docker run -it -e AWS_ACCESS_KEY_ID=FOO -e AWS_SECRET_ACCESS_KEY=BAR -e CONFIGURATIONS="`cat ~/Documents/config.json`" -e POINTER_TABLE=SOMETHING-versions-pointer -e AWS_DEFAULT_REGION=us-west-2 log_processor:latest python3 -m src.handler
+```
